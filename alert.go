@@ -2,27 +2,28 @@ package thehive
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
 	"github.com/levigross/grequests"
-	"strings"
 )
 
 // Stores a hive alert
 type HiveAlert struct {
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Severity    int        `json:"severity"`
-	Tlp         int        `json:"tlp"`
-	Tags        []string   `json:"tags"`
-	Type        string     `json:"type"`
-	Source      string     `json:"source"`
-	SourceRef   string     `json:"sourceRef"`
-	Date        string     `json:"date,omitempty"`
-	Owner       string     `json:"owner,omitempty"`
-	Artifacts   []Artifact `json:"artifacts"`
-	Raw         []byte     `json:"-"`
+	Title        string     `json:"title,omitempty"`
+	Description  string     `json:"description,omitempty"`
+	Severity     int        `json:"severity,omitempty"`
+	Tlp          int        `json:"tlp,omitempty"`
+	Tags         []string   `json:"tags,omitempty"`
+	Type         string     `json:"type,omitempty"`
+	Source       string     `json:"source,omitempty"`
+	Status       string     `json:"status,omitempty"`
+	SourceRef    string     `json:"sourceRef,omitempty"`
+	Date         string     `json:"date,omitempty"`
+	Owner        string     `json:"owner,omitempty"`
+	Artifacts    []Artifact `json:"artifacts"`
+	CaseTemplate string     `json:"caseTemplate,omitempty"`
+	Raw          []byte     `json:"-"`
 }
 
 type AlertResponse struct {
@@ -147,59 +148,59 @@ func (hive *Hivedata) FindAlertsRaw(search []byte) (*HiveAlertMulti, error) {
 // 	9. sourceref string
 // 	9. date string
 // Returns HiveAlert struct and response error
-func (hive *Hivedata) CreateAlert(artifacts []Artifact, title string, description string, tlp int, severity int, tags []string, types string, source string, sourceref string, date string) (*AlertResponse, error) {
+func (hive *Hivedata) CreateAlert(alert *HiveAlert) (*AlertResponse, error) {
+	url := fmt.Sprintf("%s%s", hive.Url, "/api/alert")
 
-	var alert HiveAlert
-	var url string
+	/*
+		// Handle files
+		newArtifacts := []Artifact{}
+		for _, item := range artifacts {
+			if item.DataType != "file" {
+				newArtifacts = append(newArtifacts, item)
+			}
 
-	// Handle files
-	newArtifacts := []Artifact{}
-	for _, item := range artifacts {
-		if item.DataType != "file" {
+			fd, err := grequests.FileUploadFromDisk(item.Data)
+			if err != nil {
+				continue
+			}
+
+			if fd[0].FileMime == "" {
+				fd[0].FileMime = "text/plain"
+			}
+
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(fd[0].FileContents)
+
+			realData := base64.StdEncoding.EncodeToString([]byte(buf.String()))
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+
+			filenamesplit := strings.Split(fd[0].FileName, "/")
+			filename := filenamesplit[(len(filenamesplit))-1]
+
+			item.Data = fmt.Sprintf("%s;%s;%s", filename, fd[0].FileMime, realData)
 			newArtifacts = append(newArtifacts, item)
 		}
-
-		fd, err := grequests.FileUploadFromDisk(item.Data)
-		if err != nil {
-			fmt.Println("here?")
-			continue
+	*/
+	/*	alert = HiveAlert{
+			Title:       title,
+			Description: description,
+			Tlp:         tlp,
+			Artifacts:   newArtifacts,
+			Type:        types,
+			Tags:        tags,
+			SourceRef:   sourceref,
+			Source:      source,
+			Severity:    severity,
 		}
 
-		if fd[0].FileMime == "" {
-			fd[0].FileMime = "text/plain"
+		if date != "" {
+			alert.Date = date
 		}
 
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(fd[0].FileContents)
-
-		realData := base64.StdEncoding.EncodeToString([]byte(buf.String()))
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		filenamesplit := strings.Split(fd[0].FileName, "/")
-		filename := filenamesplit[(len(filenamesplit))-1]
-
-		item.Data = fmt.Sprintf("%s;%s;%s", filename, fd[0].FileMime, realData)
-		newArtifacts = append(newArtifacts, item)
-	}
-
-	alert = HiveAlert{
-		Title:       title,
-		Description: description,
-		Tlp:         tlp,
-		Artifacts:   newArtifacts,
-		Type:        types,
-		Tags:        tags,
-		SourceRef:   sourceref,
-		Source:      source,
-		Severity:    severity,
-	}
-
-	if date != "" {
-		alert.Date = date
-	}
+	*/
 
 	jsondata, err := json.Marshal(alert)
 
@@ -209,8 +210,55 @@ func (hive *Hivedata) CreateAlert(artifacts []Artifact, title string, descriptio
 
 	hive.Ro.RequestBody = bytes.NewReader(jsondata)
 
-	url = fmt.Sprintf("%s%s", hive.Url, "/api/alert")
 	ret, err := grequests.Post(url, &hive.Ro)
+
+	parsedRet := new(AlertResponse)
+	_ = json.Unmarshal(ret.Bytes(), parsedRet)
+	parsedRet.Raw = ret.Bytes()
+
+	return parsedRet, err
+}
+
+func (hive *Hivedata) UpdateAlert(id string, alert *HiveAlert) (*AlertResponse, error) {
+	url := fmt.Sprintf("%s%s%s%s", hive.Url, "/api/alert", "/", id)
+
+	// update only the alert attributes that are not read-only
+	updatedAlert := &HiveAlert{}
+	if len(alert.Title) > 0 {
+		updatedAlert.Title = alert.Title
+	}
+	if len(alert.Description) > 0 {
+		updatedAlert.Description = alert.Description
+	}
+	if alert.Tlp > 0 {
+		updatedAlert.Tlp = alert.Tlp
+	}
+	//		Artifacts:    alert.Artifacts,
+	if len(alert.Tags) > 0 {
+		updatedAlert.Tags = alert.Tags
+	}
+	if alert.Severity > 0 {
+		updatedAlert.Severity = alert.Severity
+	}
+	if len(alert.CaseTemplate) > 0 {
+		updatedAlert.CaseTemplate = alert.CaseTemplate
+	}
+	if len(alert.Status) > 0 {
+		updatedAlert.Status = alert.Status
+	}
+
+	if len(alert.Artifacts) > 0 {
+		updatedAlert.Artifacts = alert.Artifacts
+	}
+
+	jsondata, err := json.Marshal(updatedAlert)
+	if err != nil {
+		return &AlertResponse{}, err
+	}
+
+	hive.Ro.RequestBody = bytes.NewReader(jsondata)
+
+	ret, err := grequests.Patch(url, &hive.Ro)
 
 	parsedRet := new(AlertResponse)
 	_ = json.Unmarshal(ret.Bytes(), parsedRet)
@@ -307,7 +355,6 @@ func (hive *Hivedata) AddAlertArtifact(alertId string, artifact Artifact) (*Aler
 	} else {
 		fd, err := grequests.FileUploadFromDisk(artifact.Data)
 		if err != nil {
-			fmt.Println("here?")
 			return nil, err
 		}
 
