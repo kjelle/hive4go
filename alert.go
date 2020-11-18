@@ -112,7 +112,7 @@ func (hive *Hivedata) FindAlertsQuery(queryfield string, queryvalues []string) (
 
 	hive.Ro.RequestBody = nil // if we don't do this, the JSON part will not run.. veldig bra bibliotek da.. NOT!
 	hive.Ro.JSON = jsonsearch
-	//	fmt.Printf("json: %s\n", jsonsearch)
+	//fmt.Printf("json: %s\n", jsonsearch)
 
 	ret, err := grequests.Post(url, &hive.Ro)
 
@@ -133,7 +133,7 @@ func (hive *Hivedata) FindAlertsRaw(search []byte) (*HiveAlertMulti, error) {
 
 	hive.Ro.RequestBody = nil // if we don't do this, the JSON part will not run.. veldig bra bibliotek da.. NOT!
 	hive.Ro.JSON = search
-	//	fmt.Printf("json: %s\n", search)
+	//fmt.Printf("json: %s\n", search)
 
 	ret, err := grequests.Post(url, &hive.Ro)
 
