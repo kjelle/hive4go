@@ -19,9 +19,9 @@ type HiveAlert struct {
 	Source       string     `json:"source,omitempty"`
 	Status       string     `json:"status,omitempty"`
 	SourceRef    string     `json:"sourceRef,omitempty"`
-	Date         string     `json:"date,omitempty"`
+	Date         int        `json:"date,omitempty"`
 	Owner        string     `json:"owner,omitempty"`
-	Artifacts    []Artifact `json:"artifacts"`
+	Artifacts    []Artifact `json:"artifacts,omitempty"`
 	CaseTemplate string     `json:"caseTemplate,omitempty"`
 	Raw          []byte     `json:"-"`
 }
@@ -39,6 +39,7 @@ type AlertResponse struct {
 	SourceRef   string     `json:"sourceRef"`
 	Owner       string     `json:"owner"`
 	Artifacts   []Artifact `json:"artifacts"`
+	Status      string     `json:"status,omitempty"`
 	Raw         []byte     `json:"-"`
 }
 
@@ -73,7 +74,6 @@ func AlertArtifact(dataType string, message string, tlp int, tags []string, ioc 
 func (hive *Hivedata) FindAlertsQuery(queryfield string, queryvalues []string) (*HiveAlertMulti, error) {
 	// Sorts by tlp by default
 	var url string
-
 	url = fmt.Sprintf("%s%s", hive.Url, "/api/alert/_search?range=all")
 
 	type Search struct {
@@ -85,14 +85,19 @@ func (hive *Hivedata) FindAlertsQuery(queryfield string, queryvalues []string) (
 		Search `json:"_in"`
 	}
 
+	type And struct {
+		Search `json:"_and"`
+	}
+
 	// This one isn't documented, but necessary to make the search work.
 	type Query struct {
-		In `json:"query"`
+		And `json:"query,omitempty"`
+		//	Like `json:"query,omitempty"`
 	}
 
 	// Creates the json struct object
 	searchquery := Query{
-		In{
+		And{
 			Search{
 				Field:  queryfield,
 				Values: queryvalues,
@@ -105,12 +110,14 @@ func (hive *Hivedata) FindAlertsQuery(queryfield string, queryvalues []string) (
 		return nil, err
 	}
 
+	hive.Ro.RequestBody = nil // if we don't do this, the JSON part will not run.. veldig bra bibliotek da.. NOT!
 	hive.Ro.JSON = jsonsearch
+	//	fmt.Printf("json: %s\n", jsonsearch)
 
 	ret, err := grequests.Post(url, &hive.Ro)
 
 	parsedRet := new(HiveAlertMulti)
-	_ = json.Unmarshal(ret.Bytes(), parsedRet.Detail)
+	_ = json.Unmarshal(ret.Bytes(), &parsedRet.Detail)
 	parsedRet.Raw = ret.Bytes()
 
 	return parsedRet, err
@@ -124,12 +131,14 @@ func (hive *Hivedata) FindAlertsRaw(search []byte) (*HiveAlertMulti, error) {
 	var url string
 	url = fmt.Sprintf("%s%s", hive.Url, "/api/alert/_search?range=all")
 
+	hive.Ro.RequestBody = nil // if we don't do this, the JSON part will not run.. veldig bra bibliotek da.. NOT!
 	hive.Ro.JSON = search
+	//	fmt.Printf("json: %s\n", search)
 
 	ret, err := grequests.Post(url, &hive.Ro)
 
 	parsedRet := new(HiveAlertMulti)
-	err = json.Unmarshal(ret.Bytes(), &parsedRet.Detail)
+	_ = json.Unmarshal(ret.Bytes(), &parsedRet.Detail)
 	parsedRet.Raw = ret.Bytes()
 
 	return parsedRet, err
@@ -219,46 +228,54 @@ func (hive *Hivedata) CreateAlert(alert *HiveAlert) (*AlertResponse, error) {
 	return parsedRet, err
 }
 
-func (hive *Hivedata) UpdateAlert(id string, alert *HiveAlert) (*AlertResponse, error) {
+func (hive *Hivedata) UpdateAlert(id string, updatedAlert *HiveAlert) (*AlertResponse, error) {
 	url := fmt.Sprintf("%s%s%s%s", hive.Url, "/api/alert", "/", id)
+	//fmt.Printf("url:%s\n", url)
 
 	// update only the alert attributes that are not read-only
-	updatedAlert := &HiveAlert{}
-	if len(alert.Title) > 0 {
-		updatedAlert.Title = alert.Title
-	}
-	if len(alert.Description) > 0 {
-		updatedAlert.Description = alert.Description
-	}
-	if alert.Tlp > 0 {
-		updatedAlert.Tlp = alert.Tlp
-	}
-	//		Artifacts:    alert.Artifacts,
-	if len(alert.Tags) > 0 {
-		updatedAlert.Tags = alert.Tags
-	}
-	if alert.Severity > 0 {
-		updatedAlert.Severity = alert.Severity
-	}
-	if len(alert.CaseTemplate) > 0 {
-		updatedAlert.CaseTemplate = alert.CaseTemplate
-	}
-	if len(alert.Status) > 0 {
-		updatedAlert.Status = alert.Status
-	}
+	/*
+		updatedAlert := &HiveAlert{}
+		if len(alert.Title) > 0 {
+			updatedAlert.Title = alert.Title
+		}
+		if len(alert.Description) > 0 {
+			updatedAlert.Description = alert.Description
+		}
+		if alert.Tlp > 0 {
+			updatedAlert.Tlp = alert.Tlp
+		}
+		//		Artifacts:    alert.Artifacts,
+		if len(alert.Tags) > 0 {
+			updatedAlert.Tags = alert.Tags
+		}
+		if alert.Severity > 0 {
+			updatedAlert.Severity = alert.Severity
+		}
+		if len(alert.CaseTemplate) > 0 {
+			updatedAlert.CaseTemplate = alert.CaseTemplate
+		}
+		if len(alert.Status) > 0 {
+			updatedAlert.Status = alert.Status
+		}
 
-	if len(alert.Artifacts) > 0 {
-		updatedAlert.Artifacts = alert.Artifacts
-	}
+		if len(alert.Artifacts) > 0 {
+			updatedAlert.Artifacts = alert.Artifacts
+		}
+		updatedAlert.Date = int(time.Now().UnixNano() / int64(time.Millisecond))
+	*/
 
 	jsondata, err := json.Marshal(updatedAlert)
 	if err != nil {
 		return &AlertResponse{}, err
 	}
 
-	hive.Ro.RequestBody = bytes.NewReader(jsondata)
-
+	hive.Ro.RequestBody = nil // if we don't do this, the JSON part will not run.. veldig bra bibliotek da.. NOT!
+	hive.Ro.JSON = jsondata
+	//fmt.Printf("json: %s\n", jsondata)
 	ret, err := grequests.Patch(url, &hive.Ro)
+
+	//	hive.Ro.RequestBody = bytes.NewReader(jsondata)
+	//	ret, err := grequests.Patch(url, &hive.Ro)
 
 	parsedRet := new(AlertResponse)
 	_ = json.Unmarshal(ret.Bytes(), parsedRet)
@@ -367,7 +384,6 @@ func (hive *Hivedata) AddAlertArtifact(alertId string, artifact Artifact) (*Aler
 		// Custom solution because files suck. Couldn't get it to work with hive.Ro for some reason
 		marshalData, err := json.Marshal(resp.Artifacts)
 		if err != nil {
-			fmt.Println("HERE)_))")
 			return nil, err
 		}
 
@@ -435,6 +451,7 @@ func (hive *Hivedata) PatchAlertTags(alertId string, value []string) (*AlertResp
 
 func (hive *Hivedata) MarkAlertAsUnread(alertId string) (*AlertResponse, error) {
 	url := fmt.Sprintf("%s/api/alert/%s/markAsUnread", hive.Url, alertId)
+	//	fmt.Printf("url: %s\n", url)
 	ret, err := grequests.Post(url, &hive.Ro)
 	if err != nil {
 		return nil, err
