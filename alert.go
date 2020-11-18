@@ -31,6 +31,7 @@ type AlertResponse struct {
 	Description string     `json:"description"`
 	Severity    int        `json:"severity"`
 	Tlp         int        `json:"tlp"`
+	Date        int        `json:"date"`
 	Tags        []string   `json:"tags"`
 	Type        string     `json:"type"`
 	Id          string     `json:"id"`
