@@ -19,6 +19,7 @@ type HiveAlert struct {
 	Source       string     `json:"source,omitempty"`
 	Status       string     `json:"status,omitempty"`
 	SourceRef    string     `json:"sourceRef,omitempty"`
+	ExternalLink string     `json:"externalLink,omitempty"`
 	Date         int        `json:"date,omitempty"`
 	Owner        string     `json:"owner,omitempty"`
 	Artifacts    []Artifact `json:"artifacts,omitempty"`
@@ -160,6 +161,7 @@ func (hive *Hivedata) FindAlertsRaw(search []byte) (*HiveAlertMulti, error) {
 // Returns HiveAlert struct and response error
 func (hive *Hivedata) CreateAlert(alert *HiveAlert) (*AlertResponse, error) {
 	url := fmt.Sprintf("%s%s", hive.Url, "/api/alert")
+	//	fmt.Printf("\n\nurl=%s\n", url)
 
 	/*
 		// Handle files
@@ -221,6 +223,7 @@ func (hive *Hivedata) CreateAlert(alert *HiveAlert) (*AlertResponse, error) {
 	hive.Ro.RequestBody = bytes.NewReader(jsondata)
 
 	ret, err := grequests.Post(url, &hive.Ro)
+	//fmt.Printf("%+v\n", ret)
 
 	parsedRet := new(AlertResponse)
 	_ = json.Unmarshal(ret.Bytes(), parsedRet)
